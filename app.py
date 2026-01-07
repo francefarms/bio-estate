@@ -74,51 +74,5 @@ with tab1:
             st.rerun()
 
 with tab2:
-    dna_input = st.text_area("Type or Paste DNA Sequence:", placeholder="Example: GATC...")
-    if dna_input:
-        dna_clean = dna_input.strip().upper()
-        
-        try:
-            # --- 🧬 BIOPYTHON ANALYSIS ---
-            seq_obj = Seq(dna_clean)
-            gc = gc_fraction(seq_obj) * 100
-            
-            # --- 🛡️ EXPORT COMPLIANCE CHECK ---
-            st.subheader("🛡️ Export Compliance Check")
-            col_res1, col_res2 = st.columns(2)
-            
-            with col_res1:
-                st.metric("GC Content", f"{gc:.2f}%")
-            
-            with col_res2:
-                if gc > 45: 
-                    st.error("❌ REJECTED: High Risk")
-                else:
-                    st.success("✅ PASSED: Low Risk")
-
-            if gc > 45:
-                st.warning("High-virulence markers detected. Batch flagged for quarantine.")
-            else:
-                st.info("Biological integrity verified for USDA/EU export standards.")
-
-            if st.button("🔗 Secure DNA to Ledger"):
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                prev_hash = get_last_hash()
-                current_hash = generate_hash(f"{timestamp}TEXT_DATA{dna_clean}{prev_hash}")
-                
-                if not os.path.exists(LOG_FILE):
-                    with open(LOG_FILE, "w") as f:
-                        f.write("timestamp,sender,filepath,previous_hash,block_hash\n")
-                with open(LOG_FILE, "a") as log:
-                    log.write(f"{timestamp},WEB_USER,TEXT_DATA,{prev_hash},{current_hash}\n")
-                st.success(f"DNA Block {current_hash[:10]} Secured.")
-                st.rerun()
-                
-        except Exception as e:
-            st.error(f"Data Error: {e}")
-
-# --- 3. LIVE FARMER FEED ---
-st.divider()
-st.header("📡 Live Farmer Feed")
-
-if os.path.exists(LOG_FILE):
+    dna
+    
