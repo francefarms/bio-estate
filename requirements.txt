@@ -1,4 +1,1 @@
-streamlit
-biopython
-pandas
-matplotlib
+streamlit\npandas\ntwilio\nflask
