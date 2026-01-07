@@ -3,6 +3,8 @@ import pandas as pd
 import os
 import hashlib
 from datetime import datetime
+from Bio.Seq import Seq
+from Bio.SeqUtils import gc_fraction
 
 # --- SETTINGS ---
 LOG_FILE = "seasonal_log.csv"
@@ -33,9 +35,8 @@ def get_last_hash():
 st.sidebar.header("📡 Live Node Status")
 if os.path.exists(LOG_FILE):
     try:
-        df = pd.read_csv(LOG_FILE)
-        st.sidebar.metric("Total Blocks Secured", len(df))
-        # Visual indicator for Trinidad Node
+        df_sidebar = pd.read_csv(LOG_FILE)
+        st.sidebar.metric("Total Blocks Secured", len(df_sidebar))
         st.sidebar.success("📍 Trinidad Node: ONLINE")
         st.sidebar.info("Syncing with Chaguanas Hub...")
     except:
@@ -77,67 +78,21 @@ with tab2:
     dna_input = st.text_area("Type or Paste DNA Sequence:", placeholder="Example: GATC...")
     if dna_input:
         dna_clean = dna_input.strip().upper()
-        # Real-time GC Analysis
-        gc = (dna_clean.count('G') + dna_clean.count('C')) / len(dna_clean) * 100
-        risk = "⚠️ HIGH" if gc > 50 else "✅ LOW"
-        st.write(f"**Diagnostic Result:** {risk} Risk ({gc:.1f}% GC Content)")
         
-        if st.button("🔗 Secure DNA to Ledger"):
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            prev_hash = get_last_hash()
-            current_hash = generate_hash(f"{timestamp}TEXT_DATA{dna_clean}{prev_hash}")
+        try:
+            # --- 🧬 BIOPYTHON ANALYSIS ---
+            seq_obj = Seq(dna_clean)
+            gc = gc_fraction(seq_obj) * 100
             
-            if not os.path.exists(LOG_FILE):
-                with open(LOG_FILE, "w") as f:
-                    f.write("timestamp,sender,filepath,previous_hash,block_hash\n")
-            with open(LOG_FILE, "a") as log:
-                log.write(f"{timestamp},WEB_USER,TEXT_DATA,{prev_hash},{current_hash}\n")
-            st.success("DNA Sequence recorded in Blockchain.")
-            st.rerun()
-
-# --- 3. LIVE FARMER FEED ---
-st.divider()
-st.header("📡 Live Farmer Feed")
-
-if os.path.exists(LOG_FILE):
-    try:
-        df = pd.read_csv(LOG_FILE)
-        latest = df.iloc[::-1]
-
-        for index, row in latest.iterrows():
-            # Smart Labeling: Detect Trinidad numbers
-            source_label = row['sender']
-            if str(source_label).startswith('1868'):
-                source_label = f"🇹🇹 Trinidad Farmer ({source_label})"
+            # --- 🛡️ EXPORT COMPLIANCE CHECK ---
+            st.subheader("🛡️ Export Compliance Check")
+            col_res1, col_res2 = st.columns(2)
             
-            with st.expander(f"Block: {str(row['block_hash'])[:12]}... (Source: {source_label})"):
-                col1, col2 = st.columns([1, 2])
-                
-                with col1:
-                    filepath = str(row['filepath'])
-                    if filepath != "TEXT_DATA" and os.path.exists(filepath):
-                        st.image(filepath, use_container_width=True)
-                    else:
-                        st.info("🧬 DNA Sequence Data")
-                
-                with col2:
-                    st.write(f"📅 **Timestamp:** {row['timestamp']}")
-                    st.write(f"🔗 **Previous Hash:** `{str(row['previous_hash'])[:15]}...`")
-                    st.write(f"🛡️ **Block Hash:** `{row['block_hash']}`")
-    except Exception as e:
-        st.error(f"Waiting for fresh data... (Header Sync: {e})")
-else:
-    st.info("Waiting for first transmission from field or web...")
-
-# --- 4. EXPLORER ---
-st.divider()
-st.header("🔍 Blockchain Ledger Explorer")
-search = st.text_input("Enter Block Hash to verify a report:")
-if search and os.path.exists(LOG_FILE):
-    result = df[df['block_hash'].astype(str).str.contains(search)]
-    if not result.empty:
-        st.success("✅ Block Verified in Ledger")
-        st.dataframe(result)
-    else:
-        st.error("❌ Hash not found. This record may be counterfeit.")
-        
+            with col_res1:
+                st.metric("GC Content", f"{gc:.2f}%")
+            
+            with col_res2:
+                if gc > 45: # Threshold for high-risk pathogens
+                    st.error("❌ REJECTED: High Risk")
+                else:
+                    st.success("✅ PASSED:
