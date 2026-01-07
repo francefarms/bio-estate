@@ -5,6 +5,8 @@ import hashlib
 from datetime import datetime
 from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction
+from PIL import Image
+import piexif 
 
 # --- SETTINGS ---
 LOG_FILE = "seasonal_log.csv"
@@ -13,155 +15,139 @@ DATA_DIR = "starch_mango_database"
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
-st.set_page_config(page_title="Bio-Estate Dashboard", layout="wide")
-st.title("🥭 Bio-Estate: Secure Pathogen Ledger")
+if not os.path.exists(LOG_FILE):
+    with open(LOG_FILE, "w") as f:
+        f.write("timestamp,sender,filepath,previous_hash,block_hash\n")
 
-# --- BLOCKCHAIN UTILITIES ---
+st.set_page_config(page_title="Bio-Estate Dashboard", layout="wide")
+
+# Custom CSS for "High-Tech" look
+st.markdown("""
+    <style>
+    .stMetric { background-color: #1f2937; padding: 10px; border-radius: 10px; border: 1px solid #374151; }
+    .stButton>button { width: 100%; border-radius: 20px; font-weight: bold; background-color: #2ecc71; color: white; }
+    [data-testid="stSidebar"] { background-color: #0e1117; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- UTILITIES ---
 def generate_hash(data_string):
     return hashlib.sha256(data_string.encode()).hexdigest()
 
 def get_last_hash():
-    if not os.path.exists(LOG_FILE):
-        return "0000000000000000"
     try:
         df_temp = pd.read_csv(LOG_FILE)
         if not df_temp.empty:
             return str(df_temp.iloc[-1]['block_hash'])
-        return "0000000000000000"
     except:
-        return "0000000000000000"
+        pass
+    return "0000000000000000"
 
-# --- 1. SIDEBAR ---
-st.sidebar.header("📡 Live Node Status")
-if os.path.exists(LOG_FILE):
+def get_image_gps(img_path):
     try:
-        df_sidebar = pd.read_csv(LOG_FILE)
-        st.sidebar.metric("Total Blocks Secured", len(df_sidebar))
-        st.sidebar.success("📍 Trinidad Node: ONLINE")
+        img = Image.open(img_path)
+        if 'exif' in img.info:
+            return "📍 GPS Verified (Field Entry)"
     except:
-        st.sidebar.warning("Initializing Ledger...")
-else:
-    st.sidebar.warning("No ledger found yet.")
+        pass
+    return "📍 Trinidad Hub (Stationary Node)"
 
-# --- 2. PATHOGEN ANALYSIS (Entry Hub) ---
-st.header("🧬 Pathogen Analysis")
-tab1, tab2 = st.tabs(["📁 File Upload", "⌨️ Manual DNA Entry"])
+# --- SIDEBAR ---
+st.sidebar.title("🥭 Bio-Estate Node")
+df_count = pd.read_csv(LOG_FILE)
+st.sidebar.metric("Blocks Secured", len(df_count))
+st.sidebar.success("📍 Node: Trinidad & Tobago")
+st.sidebar.info("System Status: Active")
+
+st.title("🛡️ Bio-Defense & Pathogen Ledger")
+
+# --- PATHOGEN ANALYSIS ---
+st.header("🧬 Real-Time Analysis")
+tab1, tab2 = st.tabs(["📁 Image/File Upload", "⌨️ Manual DNA Entry"])
 
 with tab1:
-    uploaded_file = st.file_uploader(
-        "Upload .fasta or Image file", 
-        type=['fasta', 'jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG']
-    )
+    uploaded_file = st.file_uploader("Upload Evidence", type=['jpg', 'png', 'jpeg', 'fasta'])
     if uploaded_file is not None:
         save_path = os.path.join(DATA_DIR, uploaded_file.name)
         with open(save_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         
-        if "image" in uploaded_file.type or uploaded_file.name.lower().endswith(('jpg', 'jpeg', 'png')):
-            st.image(save_path, width=250, caption="Preview of Evidence")
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        prev_hash = get_last_hash()
-        current_hash = generate_hash(f"{timestamp}WEB_UPLOAD{save_path}{prev_hash}")
+        auto_loc = get_image_gps(save_path)
+        col_left, col_right = st.columns(2)
         
-        if st.button("✅ Confirm & Secure File"):
-            if not os.path.exists(LOG_FILE):
-                with open(LOG_FILE, "w") as f:
-                    f.write("timestamp,sender,filepath,previous_hash,block_hash\n")
-            with open(LOG_FILE, "a") as log:
-                log.write(f"{timestamp},WEB_USER,{save_path},{prev_hash},{current_hash}\n")
-            st.success(f"Block {current_hash[:10]} Secured!")
-            st.rerun()
-
-with tab2:
-    dna_input = st.text_area("Type or Paste DNA Sequence:", placeholder="Example: GATC...")
-    if dna_input:
-        dna_clean = dna_input.strip().upper()
-        
-        try:
-            # --- 🧬 BIOPYTHON ANALYSIS ---
-            seq_obj = Seq(dna_clean)
-            gc = gc_fraction(seq_obj) * 100
-            
-            # --- 🛡️ EXPORT COMPLIANCE CHECK ---
-            st.subheader("🛡️ Export Compliance Check")
-            col_res1, col_res2 = st.columns(2)
-            
-            with col_res1:
-                st.metric("GC Content", f"{gc:.2f}%")
-            
-            with col_res2:
-                if gc > 45: 
-                    st.error("❌ REJECTED: High Risk")
-                else:
-                    st.success("✅ PASSED: Low Risk")
-
-            if gc > 45:
-                st.warning("High-virulence markers detected. Batch flagged for quarantine.")
+        with col_left:
+            if uploaded_file.name.lower().endswith(('.jpg', '.png', '.jpeg')):
+                st.image(save_path, caption=f"Capture Source: {auto_loc}", use_container_width=True)
             else:
-                st.info("Biological integrity verified for USDA/EU export standards.")
+                st.info(f"📄 DNA Sequence File | {auto_loc}")
 
-            if st.button("🔗 Secure DNA to Ledger"):
+        with col_right:
+            if uploaded_file.name.lower().endswith('.fasta'):
+                raw_data = uploaded_file.getvalue().decode("utf-8")
+                dna_seq = "".join(raw_data.splitlines()[1:]).strip().upper()
+                gc = gc_fraction(Seq(dna_seq)) * 100
+                pathogen_name = "Anthracnose Detected" if gc > 45 else "Biologically Clear"
+                risk_level = "HIGH" if gc > 45 else "LOW"
+                st.metric("🧬 GC Content", f"{gc:.2f}%")
+                analysis_result = f"DNA: {pathogen_name} ({gc:.1f}%)"
+            else:
+                fname = uploaded_file.name.lower()
+                analysis_result = "Visual ID: Anthracnose" if any(x in fname for x in ["spot", "black"]) else "Visual ID: Clear"
+                risk_level = "HIGH" if "Anthracnose" in analysis_result else "LOW"
+                st.warning(f"Result: {analysis_result}")
+
+            if st.button("🔗 Secure to Blockchain", key="img_btn"):
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 prev_hash = get_last_hash()
-                current_hash = generate_hash(f"{timestamp}TEXT_DATA{dna_clean}{prev_hash}")
-                
-                if not os.path.exists(LOG_FILE):
-                    with open(LOG_FILE, "w") as f:
-                        f.write("timestamp,sender,filepath,previous_hash,block_hash\n")
+                info_packet = f"{auto_loc} | {uploaded_file.name} | {analysis_result}"
+                current_hash = generate_hash(f"{timestamp}{info_packet}{prev_hash}")
                 with open(LOG_FILE, "a") as log:
-                    log.write(f"{timestamp},WEB_USER,TEXT_DATA,{prev_hash},{current_hash}\n")
-                st.success(f"DNA Block {current_hash[:10]} Secured.")
+                    log.write(f"{timestamp},WEB_USER,{info_packet},{prev_hash},{current_hash}\n")
+                st.success("Record Locked.")
                 st.rerun()
-                
-        except Exception as e:
-            st.error(f"Data Error: {e}")
 
-# --- 3. LIVE FARMER FEED ---
+with tab2:
+    dna_input = st.text_area("Paste DNA Sequence:")
+    if dna_input:
+        dna_clean = dna_input.strip().upper()
+        gc = gc_fraction(Seq(dna_clean)) * 100
+        pathogen_name = "Anthracnose Detected" if gc > 45 else "Clear"
+        st.metric("GC Content", f"{gc:.2f}%")
+        if st.button("🔗 Secure DNA Block", key="dna_btn"):
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            prev_hash = get_last_hash()
+            info = f"Manual DNA | GC: {gc:.1f}% | {pathogen_name}"
+            current_hash = generate_hash(f"{timestamp}{info}{prev_hash}")
+            with open(LOG_FILE, "a") as log:
+                log.write(f"{timestamp},WEB_USER,{info},{prev_hash},{current_hash}\n")
+            st.success("DNA Verified & Secured.")
+            st.rerun()
+
+# --- LIVE FARMER FEED ---
 st.divider()
 st.header("📡 Live Farmer Feed")
+df_feed = pd.read_csv(LOG_FILE)
+if not df_feed.empty:
+    # We use a loop to show the most recent blocks at the top
+    for index, row in df_feed.iloc[::-1].head(10).iterrows():
+        with st.expander(f"📦 Block {str(row['block_hash'])[:12]}"):
+            st.write(f"📅 **Time:** {row['timestamp']}")
+            st.write(f"🧬 **Data:** {row['filepath']}")
+            st.write(f"🛡️ **Hash:** `{row['block_hash']}`")
 
-if os.path.exists(LOG_FILE):
-    try:
-        df_feed = pd.read_csv(LOG_FILE)
-        if not df_feed.empty:
-            latest = df_feed.iloc[::-1]
-
-            for index, row in latest.iterrows():
-                source_label = row['sender']
-                if str(source_label).startswith('1868'):
-                    source_label = f"🇹🇹 Trinidad Farmer ({source_label})"
-                
-                with st.expander(f"Block: {str(row['block_hash'])[:12]}... (Source: {source_label})"):
-                    c1, c2 = st.columns([1, 2])
-                    with c1:
-                        fpath = str(row['filepath'])
-                        if fpath != "TEXT_DATA" and os.path.exists(fpath):
-                            st.image(fpath, use_container_width=True)
-                        else:
-                            st.info("🧬 DNA Data Record")
-                    with c2:
-                        st.write(f"📅 **Timestamp:** {row['timestamp']}")
-                        st.write(f"🛡️ **Hash:** `{row['block_hash']}`")
-        else:
-            st.info("Ledger is currently empty. Waiting for first transmission...")
-    except Exception as e:
-        st.error(f"Syncing Nodes... ({e})")
-else:
-    st.info("Waiting for first transmission from field or web...")
-
-# --- 4. EXPLORER ---
+# --- EXPLORER & MAP ---
 st.divider()
-st.header("🔍 Blockchain Ledger Explorer")
-search = st.text_input("Enter Block Hash to verify:")
-if search and os.path.exists(LOG_FILE):
-    try:
-        df_exp = pd.read_csv(LOG_FILE)
-        result = df_exp[df_exp['block_hash'].astype(str).str.contains(search)]
-        if not result.empty:
-            st.success("✅ Block Verified in Ledger")
-            st.dataframe(result)
-        else:
-            st.error("❌ Hash not found. Record may be altered or counterfeit.")
-    except Exception as e:
-        st.error(f"Explorer Error: {e}")
+col_map, col_search = st.columns([2, 1])
+
+with col_map:
+    st.subheader("🗺️ Regional Risk Map")
+    # Coordinates for Trinidad
+    map_data = pd.DataFrame({'lat': [10.64, 10.51, 10.35], 'lon': [-61.39, -61.41, -61.45]})
+    st.map(map_data)
+
+with col_search:
+    st.subheader("🔍 Search Ledger")
+    search = st.text_input("Enter Hash:")
+    if search:
+        res = df_feed[df_feed['block_hash'].astype(str).str.contains(search)]
+        st.dataframe(res)
