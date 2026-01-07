@@ -38,7 +38,6 @@ if os.path.exists(LOG_FILE):
         df_sidebar = pd.read_csv(LOG_FILE)
         st.sidebar.metric("Total Blocks Secured", len(df_sidebar))
         st.sidebar.success("📍 Trinidad Node: ONLINE")
-        st.sidebar.info("Syncing with Chaguanas Hub...")
     except:
         st.sidebar.warning("Initializing Ledger...")
 else:
@@ -92,7 +91,34 @@ with tab2:
                 st.metric("GC Content", f"{gc:.2f}%")
             
             with col_res2:
-                if gc > 45: # Threshold for high-risk pathogens
+                if gc > 45: 
                     st.error("❌ REJECTED: High Risk")
                 else:
-                    st.success("✅ PASSED:
+                    st.success("✅ PASSED: Low Risk")
+
+            if gc > 45:
+                st.warning("High-virulence markers detected. Batch flagged for quarantine.")
+            else:
+                st.info("Biological integrity verified for USDA/EU export standards.")
+
+            if st.button("🔗 Secure DNA to Ledger"):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                prev_hash = get_last_hash()
+                current_hash = generate_hash(f"{timestamp}TEXT_DATA{dna_clean}{prev_hash}")
+                
+                if not os.path.exists(LOG_FILE):
+                    with open(LOG_FILE, "w") as f:
+                        f.write("timestamp,sender,filepath,previous_hash,block_hash\n")
+                with open(LOG_FILE, "a") as log:
+                    log.write(f"{timestamp},WEB_USER,TEXT_DATA,{prev_hash},{current_hash}\n")
+                st.success(f"DNA Block {current_hash[:10]} Secured.")
+                st.rerun()
+                
+        except Exception as e:
+            st.error(f"Data Error: {e}")
+
+# --- 3. LIVE FARMER FEED ---
+st.divider()
+st.header("📡 Live Farmer Feed")
+
+if os.path.exists(LOG_FILE):
